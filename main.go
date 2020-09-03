@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/sha1"
+	"crypto/tls"
 	"encoding/csv"
 	"flag"
 	"fmt"
@@ -64,6 +65,9 @@ var region = getRegion()
 
 // the endpoint URL if applicable
 var endpoint string
+
+// flag to indicate if SSL cert verification should be skipped
+var insecure bool
 
 // the EC2 instance type if available
 var instanceType = getInstanceType()
@@ -131,12 +135,13 @@ func parseFlags() {
 	bucketNameArg := flag.String("bucket-name", "", "Cleans up all the S3 artifacts used by the benchmarks.")
 	regionArg := flag.String("region", "", "Sets the AWS region to use for the S3 bucket. Only applies if the bucket doesn't already exist.")
 	endpointArg := flag.String("endpoint", "", "Sets the S3 endpoint to use. Only applies to non-AWS, S3-compatible stores.")
+	insecureArg := flag.Bool("insecure", false, "Disable SSL certificate verification.")
 	fullArg := flag.Bool("full", false, "Runs the full exhaustive test, and overrides the threads and payload arguments.")
 	throttlingModeArg := flag.Bool("throttling-mode", false, "Runs a continuous test to find out when EC2 network throttling kicks in.")
 	cleanupArg := flag.Bool("cleanup", false, "Cleans all the objects uploaded to S3 for this test.")
 	csvResultsArg := flag.String("upload-csv", "", "Uploads the test results to S3 as a CSV file.")
 	createBucketArg := flag.Bool("create-bucket", true, "Create the bucket")
-	
+
 	// parse the arguments and set all the global variables accordingly
 	flag.Parse()
 
@@ -151,6 +156,7 @@ func parseFlags() {
 	if *endpointArg != "" {
 		endpoint = *endpointArg
 	}
+	insecure = *insecureArg
 
 	payloadsMin = *payloadsMinArg
 	payloadsMax = *payloadsMaxArg
@@ -202,9 +208,17 @@ func setupS3Client() {
 		cfg.EndpointResolver = aws.ResolveWithEndpointURL(endpoint)
 	}
 
+	tr := http.DefaultTransport
+	if insecure {
+		tr = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
+
 	// set a 3-minute timeout for all S3 calls, including downloading the body
 	cfg.HTTPClient = &http.Client{
 		Timeout: time.Second * 180,
+		Transport: tr,
 	}
 
 	// crete the S3 client
@@ -227,7 +241,7 @@ func setup() {
 			},
 		})
 
-		// AWS S3 has this peculiar issue in which if you want to create bucket in us-east-1 region, you should NOT specify 
+		// AWS S3 has this peculiar issue in which if you want to create bucket in us-east-1 region, you should NOT specify
 		// any location constraint. https://github.com/boto/boto3/issues/125
 		if strings.ToLower(region) == "us-east-1" {
 			createBucketReq = s3Client.CreateBucketRequest(&s3.CreateBucketInput{
@@ -240,7 +254,7 @@ func setup() {
 		// if the error is because the bucket already exists, ignore the error
 		if err != nil && !strings.Contains(err.Error(), "BucketAlreadyOwnedByYou:") {
 			panic("Failed to create S3 bucket: " + err.Error())
-		}	
+		}
 	}
 
 	// an object size iterator that starts from 1 KB and doubles the size on every iteration
@@ -608,10 +622,10 @@ func cleanup() {
 
 // gets the hostname or the EC2 instance ID
 func getHostname() string {
-	instanceId := getInstanceId()
+	/*instanceId := getInstanceId()
 	if instanceId != "" {
 		return instanceId
-	}
+	}*/
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -630,7 +644,7 @@ func byteFormat(bytes float64) string {
 
 // gets the EC2 region from the instance metadata
 func getRegion() string {
-	httpClient := &http.Client{
+	/*httpClient := &http.Client{
 		Timeout: time.Second,
 	}
 
@@ -643,14 +657,14 @@ func getRegion() string {
 	content, _ := ioutil.ReadAll(response.Body)
 	_ = response.Body.Close()
 
-	az := string(content)
+	az := string(content)*/
 
-	return az[:len(az)-1]
+	return ""
 }
 
 // gets the EC2 instance type from the instance metadata
 func getInstanceType() string {
-	httpClient := &http.Client{
+/*	httpClient := &http.Client{
 		Timeout: time.Second,
 	}
 
@@ -661,9 +675,9 @@ func getInstanceType() string {
 	}
 
 	content, _ := ioutil.ReadAll(response.Body)
-	_ = response.Body.Close()
+	_ = response.Body.Close()*/
 
-	return string(content)
+	return ""
 }
 
 // gets the EC2 instance ID from the instance metadata
